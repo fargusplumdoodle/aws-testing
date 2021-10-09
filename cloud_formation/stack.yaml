@@ -1,0 +1,6 @@
+name: test-server
+region: ca-central-1
+params:
+  KeyName: isaac-ca
+  InstanceType: t2.medium
+  ImageId: ami-0b18956f

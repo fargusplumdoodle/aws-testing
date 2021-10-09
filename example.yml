@@ -1,0 +1,44 @@
+Resources: 
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]      
+      InstanceType:
+        Ref: InstanceType
+      KeyName:
+        Ref: KeyName
+      SecurityGroups:
+      - Ref: WebServerSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+           #!/bin/bash -xe
+           yum update -y aws-cfn-bootstrap
+           /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource WebServer --configsets wordpress_install --region ${AWS::Region}
+           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WebServer --region ${AWS::Region}
+  
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Enable HTTP access via port 80 locked down to the load balancer + SSH access"
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 80
+        IpProtocol: tcp
+        ToPort: 80
+      - CidrIp: !Ref SSHLocation
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+
+Parameters:
+  KeyName:
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+  InstanceType:
+    AllowedValues:
+    - t1.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: t1.micro
+    Description: WebServer EC2 instance type
+    Type: String

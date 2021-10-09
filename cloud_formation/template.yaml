@@ -1,0 +1,97 @@
+Parameters:
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI image to create
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Keypair
+    ConstraintDescription: Must already exist
+  InstanceType:
+    Type: String
+    Default: t1.micro
+  UserData:
+    Type: String
+    Description: User data script
+    Default: |
+      #!/bin/bash
+      echo 'ah, default' > ~/woo.txt
+
+
+Resources:
+  TestServer:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref ImageId
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref TestServerSecurityGroup
+      InstanceType: !Ref InstanceType
+      UserData:
+        Fn::Base64: !Ref UserData
+      IamInstanceProfile: !Ref TestInstanceProfile
+
+  TestServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "SSH Access"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/32
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+
+  TestBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: true
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: true
+
+  TestInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref TestServerRole
+
+  TestServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: TestServerRole
+      Description: For the test server to do stuff
+      ManagedPolicyArns:
+        - !Ref TestBucketAccess
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  TestBucketAccess:
+    Type:  AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allows access to the test S3 bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AccessTestBucket
+            Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+              - s3:PutObjectACL
+            Resource:
+              - !GetAtt TestBucket.Arn
+              - !Join
+                - '/'
+                - - !GetAtt TestBucket.Arn
+                  - '*'
